@@ -246,11 +246,16 @@ class RuntimeMemory:
         self._free_blocks = merged
 
     def release(self, name: str) -> None:
-        if name not in vars(self):
+        """Удалить запись переменной\n
+
+        Args:\n
+            name: имя переменной (str)\n
+        """
+
+        if self._variables.get(name) is None:
             raise NameError(f"Variable does not exist: {name}") # Debug
 
-        delattr(self, name)
-        del self.__annotations__[name]
+        del self._variables[name]
 
 #endregion
 
