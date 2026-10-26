@@ -10,27 +10,35 @@ from builtins import sum as Σ
 #region TYPES
 
 class Type:
-    pass
+    SIZE: int
 
 class UInt8(Type, int):
+    SIZE = 0x01
+
     def __new__(cls, value: int):
         if not 0 <= value <= 0xFF:
             raise ValueError("UInt8 out of range")
         return super().__new__(cls, value)
 
 class UInt16(Type, int):
+    SIZE = 0x02
+
     def __new__(cls, value: int):
         if not 0 <= value <= 0xFFFF:
             raise ValueError("UInt16 out of range")
         return super().__new__(cls, value)
 
 class UInt32(Type, int):
+    SIZE = 0x04
+
     def __new__(cls, value: int):
         if not 0 <= value <= 0xFFFFFFFF:
             raise ValueError("UInt32 out of range")
         return super().__new__(cls, value)
 
 class UInt64(Type, int):
+    SIZE = 0x08
+
     def __new__(cls, value: int):
         if not 0 <= value <= 0xFFFFFFFFFFFFFFFF:
             raise ValueError("UInt64 out of range")
@@ -38,24 +46,32 @@ class UInt64(Type, int):
 
 
 class Int8(Type, int):
+    SIZE = 0x01
+
     def __new__(cls, value: int):
         if not -0x80 <= value <= 0x7F:
             raise ValueError("Int8 out of range")
         return super().__new__(cls, value)
 
 class Int16(Type, int):
+    SIZE = 0x02
+
     def __new__(cls, value: int):
         if not -0x8000 <= value <= 0x7FFF:
             raise ValueError("Int16 out of range")
         return super().__new__(cls, value)
 
 class Int32(Type, int):
+    SIZE = 0x04
+    
     def __new__(cls, value: int):
         if not -0x80000000 <= value <= 0x7FFFFFFF:
             raise ValueError("Int32 out of range")
         return super().__new__(cls, value)
 
 class Int64(Type, int):
+    SIZE = 0x08
+    
     def __new__(cls, value: int):
         if not -0x8000000000000000 <= value <= 0x7FFFFFFFFFFFFFFF:
             raise ValueError("Int64 out of range")
@@ -63,6 +79,8 @@ class Int64(Type, int):
 
 
 class Bool(Type, int):
+    SIZE = 0x01
+
     def __new__(cls, value: int):
         if value not in (0x00, 0x01):
             raise ValueError("Bool out of range")
@@ -100,6 +118,13 @@ class RuntimeMemory:
         self._free_blocks: list[tuple[int, int]] = [
             (0x00, self._size)
         ]
+
+    def _find_free_block(self, type_size: int) -> int:
+        for i, (address, size) in enumerate(self._free_blocks):
+            if size >= type_size:
+                return i
+
+        raise MemoryError("Not enough memory")
     
     @property
     def size(self) -> UInt64:
@@ -128,7 +153,7 @@ class RuntimeMemory:
         if self._variables.get(name) != None:
             raise NameError(f"Variable already exists: {name}") # Debug
 
-        self._variables[name] = (UInt64(0x00), data_type)
+        self._variables[name] = (UInt64(self._size), data_type)
 
     def allocate(self, name: str) -> None:
         """Выделить участок памяти под переменную.\n
@@ -138,12 +163,32 @@ class RuntimeMemory:
         """
 
         if self._variables.get(name) != None:
-            raise NameError(f"Variable not found: {name}") # Debug
+            raise NameError(f"Variable does not exist: {name}") # Debug
 
-        
+        data_type: type[Type] = self._variables[name][1]
+        index_free_block: int = self._find_free_block(data_type.SIZE)
+
+        address, block_size = self._free_blocks[index_free_block]
+
+        self._variables[name] = (UInt64(address), data_type)
+
+        if block_size == data_type.SIZE:
+            self._free_blocks.pop(index_free_block)
+        else:
+            self._free_blocks[index_free_block] = (
+                address + data_type.SIZE,
+                block_size - data_type.SIZE,
+            )
         
     def assign(self, name: str, value: object) -> None:
-        if name not in vars(self):
+        """Выделить участок памяти под переменную.\n
+
+        Args:\n
+            name: имя переменной (str)\n
+            value: значение переменной (object)\n
+        """
+
+        if self._variables.get(name) != None:
             raise NameError(f"Variable does not exist: {name}") # Debug
 
         expected = self.__annotations__[name]
