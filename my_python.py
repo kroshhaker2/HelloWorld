@@ -173,7 +173,7 @@ class RuntimeMemory:
             name: имя переменной (str)\n
         """
 
-        if self._variables.get(name) != None:
+        if self._variables.get(name) is None:
             raise NameError(f"Variable does not exist: {name}") # Debug
 
         data_type: type[Type] = self._variables[name][1]
@@ -199,7 +199,7 @@ class RuntimeMemory:
             value: значение переменной (object)\n
         """
 
-        if self._variables.get(name) != None:
+        if self._variables.get(name) is None:
             raise NameError(f"Variable does not exist: {name}") # Debug
 
         address, data_type = self._variables[name]
@@ -210,9 +210,42 @@ class RuntimeMemory:
         self._memory_buffer[address:address + data_type.SIZE] = data_type.encode(cast(int, value))
     
     def free(self, name: str) -> None:
-        pass
+        """Освободить выделенный участок переменной\n
 
-    def delete(self, name: str) -> None:
+        Args:\n
+            name: имя переменной (str)\n
+        """
+
+        if self._variables.get(name) is None:
+            raise NameError(f"Variable does not exist: {name}") # Debug
+
+        address, data_type = self._variables[name]
+
+        self._memory_buffer[address:address + data_type.SIZE] = bytes(data_type.SIZE)
+
+        self._variables[name] = (UInt64(self._size), data_type)
+
+        self._free_blocks.append((address, data_type.SIZE))
+        self._free_blocks.sort()
+
+        merged: list[tuple[int, int]] = []
+
+        for current_address, current_size in self._free_blocks:
+            if merged:
+                last_address, last_size = merged[-1]
+
+                if last_address + last_size == current_address:
+                    merged[-1] = (
+                        last_address,
+                        last_size + current_size,
+                    )
+                    continue
+
+            merged.append((current_address, current_size))
+
+        self._free_blocks = merged
+
+    def release(self, name: str) -> None:
         if name not in vars(self):
             raise NameError(f"Variable does not exist: {name}") # Debug
 
