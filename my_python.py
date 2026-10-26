@@ -1,5 +1,7 @@
 """Мой код - мои правила"""
 
+from typing import cast
+
 #region OPERATIONS
 
 from builtins import sum as Σ
@@ -11,6 +13,11 @@ from builtins import sum as Σ
 
 class Type:
     SIZE: int
+    SIGNED: bool = False
+
+    @classmethod
+    def encode(cls, value: int) -> bytes:
+        return value.to_bytes(cls.SIZE, "little", signed=cls.SIGNED)
 
 class UInt8(Type, int):
     SIZE = 0x01
@@ -47,6 +54,7 @@ class UInt64(Type, int):
 
 class Int8(Type, int):
     SIZE = 0x01
+    SIGNED = True
 
     def __new__(cls, value: int):
         if not -0x80 <= value <= 0x7F:
@@ -55,6 +63,7 @@ class Int8(Type, int):
 
 class Int16(Type, int):
     SIZE = 0x02
+    SIGNED = True
 
     def __new__(cls, value: int):
         if not -0x8000 <= value <= 0x7FFF:
@@ -63,6 +72,7 @@ class Int16(Type, int):
 
 class Int32(Type, int):
     SIZE = 0x04
+    SIGNED = True
     
     def __new__(cls, value: int):
         if not -0x80000000 <= value <= 0x7FFFFFFF:
@@ -71,6 +81,7 @@ class Int32(Type, int):
 
 class Int64(Type, int):
     SIZE = 0x08
+    SIGNED = True
     
     def __new__(cls, value: int):
         if not -0x8000000000000000 <= value <= 0x7FFFFFFFFFFFFFFF:
@@ -181,7 +192,7 @@ class RuntimeMemory:
             )
         
     def assign(self, name: str, value: object) -> None:
-        """Выделить участок памяти под переменную.\n
+        """Задать значение переменной.\n
 
         Args:\n
             name: имя переменной (str)\n
@@ -191,12 +202,15 @@ class RuntimeMemory:
         if self._variables.get(name) != None:
             raise NameError(f"Variable does not exist: {name}") # Debug
 
-        expected = self.__annotations__[name]
+        address, data_type = self._variables[name]
 
-        if value is not None and not isinstance(value, expected):
+        if value is None or not isinstance(value, data_type):
             raise TypeError(f"Invalid type for {name}") # Debug
 
-        setattr(self, name, value)
+        self._memory_buffer[address:address + data_type.SIZE] = data_type.encode(cast(int, value))
+    
+    def free(self, name: str) -> None:
+        pass
 
     def delete(self, name: str) -> None:
         if name not in vars(self):
